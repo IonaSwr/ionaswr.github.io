@@ -13,37 +13,50 @@
 const startRecordButton = document.getElementById('startRecord');
 const stopRecordButton = document.getElementById('stopRecord');
 const audioPlayer = document.getElementById('audioPlayer');
+const sendToServerButton = document.getElementById('sendToServer');
 
 let mediaRecorder;
 let audioChunks = [];
 
 startRecordButton.addEventListener('click', async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-    mediaRecorder = new MediaRecorder(stream);
-    
-    mediaRecorder.ondataavailable = event => {
-        if (event.data.size > 0) {
-            audioChunks.push(event.data);
-        }
-    };
+    // ... (previous code for recording audio)
 
     mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
         const audioUrl = URL.createObjectURL(audioBlob);
         audioPlayer.src = audioUrl;
-    };
 
-    mediaRecorder.start();
-    startRecordButton.disabled = true;
-    stopRecordButton.disabled = false;
+        sendToServerButton.disabled = false; // Enable the button after recording is finished
+    };
 });
 
-stopRecordButton.addEventListener('click', () => {
-    mediaRecorder.stop();
-    startRecordButton.disabled = false;
-    stopRecordButton.disabled = true;
-    audioChunks = [];
+sendToServerButton.addEventListener('click', () => {
+    if (audioChunks.length === 0) {
+        console.log('No recorded audio to send.');
+        return;
+    }
+
+    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+
+    // Create a FormData object to send the audio blob
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recorded_audio.wav');
+
+    // Make a POST request to your Python server
+    fetch('http://your-python-server-url', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(response => {
+        if (response.ok) {
+            console.log('Audio sent successfully.');
+        } else {
+            console.error('Error sending audio.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
 });
     </script>
 </body>
