@@ -1,1 +1,51 @@
-<h1>London 1</h1>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Recorder</title>
+</head>
+<body>
+    <button id="startRecord">Start Recording</button>
+    <button id="stopRecord" disabled>Stop Recording</button>
+    <audio id="audioPlayer" controls></audio>
+
+    <script>
+        // JavaScript code for recording audio will go here
+      // Select the HTML elements
+const startRecordButton = document.getElementById('startRecord');
+const stopRecordButton = document.getElementById('stopRecord');
+const audioPlayer = document.getElementById('audioPlayer');
+
+let mediaRecorder;
+let audioChunks = [];
+
+startRecordButton.addEventListener('click', async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+    mediaRecorder = new MediaRecorder(stream);
+    
+    mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) {
+            audioChunks.push(event.data);
+        }
+    };
+
+    mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        audioPlayer.src = audioUrl;
+    };
+
+    mediaRecorder.start();
+    startRecordButton.disabled = true;
+    stopRecordButton.disabled = false;
+});
+
+stopRecordButton.addEventListener('click', () => {
+    mediaRecorder.stop();
+    startRecordButton.disabled = false;
+    stopRecordButton.disabled = true;
+    audioChunks = [];
+});
+    </script>
+</body>
+</html>
