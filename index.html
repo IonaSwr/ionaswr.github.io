@@ -12,6 +12,7 @@
     <script>
         var consoleErr = console.error;
         var consoleLog = console.log;
+        var consoleAlrt = console.alert;
         console.error = function(err){
             logsArea.value += "\n " + err;
             consoleErr(err);
@@ -19,6 +20,16 @@
         console.log = function(err){
             logsArea.value += "\n " + err;
             consoleLog(err);
+        }
+        console.alert = function(err){
+            logsArea.value += "\n " + err;
+            consoleAlrt(err);
+        }
+
+        window.onLoad = ()=>{
+            console.error("err");
+            console.log("err");
+            console.alert("err");            
         }
     </script>
 </body>
