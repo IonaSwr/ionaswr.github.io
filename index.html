@@ -1,37 +1,149 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Designer</title>
+<meta charset="UTF-8" />
+<title>Fake Linux Terminal</title>
+<style>
+body {
+  background: #000;
+  color: #0f0;
+  font-family: monospace;
+  padding: 20px;
+}
+#terminal {
+  white-space: pre-wrap;
+  height: 80vh;
+  overflow-y: auto;
+}
+input {
+  width: 100%;
+  background: #000;
+  border: none;
+  color: #0f0;
+  font-family: monospace;
+  font-size: 16px;
+  outline: none;
+}
+</style>
 </head>
 <body>
-    <input placeholder="mission"/>
-    <br/><br/><br/>
-     <textarea id="logsArea">
-         
-     </textarea>
-<button id="sendToServer" disabled>Send to Server</button>
-    <script>
-        var consoleErr = console.error;
-        var consoleLog = console.log;
-        var consoleAlrt = console.alert;
-        console.error = function(err){
-            logsArea.value += "\n " + err;
-            consoleErr(err);
-        }
-        console.log = function(err){
-            logsArea.value += "\n " + err;
-            consoleLog(err);
-        }
-        console.alert = function(err){
-            logsArea.value += "\n " + err;
-            consoleAlrt(err);
-        }
 
-        window.onLoad = ()=>{
-            console.error("err");
-            console.log("err");
-            console.alert("err");            
-        }
-    </script>
+<div id="terminal"></div>
+<input id="cmd" autofocus />
+
+<script>
+// -------------------------
+// VIRTUAL FILESYSTEM
+// -------------------------
+let cwd = "/";
+let fs = {
+  "/": {
+    type: "dir",
+    children: {
+      "home": { type: "dir", children: {} },
+      "readme.txt": { type: "file", content: "Welcome to Fake Linux!" }
+    }
+  }
+};
+
+// -------------------------
+// HELPERS
+// -------------------------
+function resolvePath(path) {
+  if (!path || path === "/") return "/";
+  if (!path.startsWith("/")) path = cwd + (cwd.endsWith("/") ? "" : "/") + path;
+
+  // Normalize
+  let parts = path.split("/").filter(p => p.length > 0);
+  let current = "/";
+  
+  for (let p of parts) {
+    if (!fs[current].children[p]) return null;
+    current += (current.endsWith("/") ? "" : "/") + p;
+  }
+  return current;
+}
+
+function listDir(path) {
+  let obj = fs[path];
+  if (!obj || obj.type !== "dir") return "Not a directory\n";
+  return Object.keys(obj.children).join("\n") + "\n";
+}
+
+// -------------------------
+// COMMAND IMPLEMENTATIONS
+// -------------------------
+function runCommand(input) {
+  let parts = input.trim().split(" ");
+  let cmd = parts[0];
+  let arg = parts[1];
+
+  switch (cmd) {
+    case "ls":
+      return listDir(cwd);
+
+    case "cd":
+      let target = resolvePath(arg);
+      if (!target || fs[target].type !== "dir")
+        return "cd: no such directory\n";
+      cwd = target;
+      return "";
+
+    case "cat":
+      let filePath = resolvePath(arg);
+      if (!filePath || !fs[filePath] || fs[filePath].type !== "file")
+        return "cat: no such file\n";
+      return fs[filePath].content + "\n";
+
+    case "mkdir":
+      let mk = resolvePath(arg);
+      if (!mk) {
+        // create folder
+        mk = cwd + (cwd.endsWith("/") ? "" : "/") + arg;
+      }
+      fs[mk] = { type: "dir", children: {} };
+      let parent = mk.substring(0, mk.lastIndexOf("/")) || "/";
+      let name = mk.split("/").pop();
+      fs[parent].children[name] = fs[mk];
+      return "";
+
+    case "touch":
+      let tf = resolvePath(arg);
+      if (!tf) tf = cwd + (cwd.endsWith("/") ? "" : "/") + arg;
+      fs[tf] = { type: "file", content: "" };
+      let p2 = tf.substring(0, tf.lastIndexOf("/")) || "/";
+      let n2 = tf.split("/").pop();
+      fs[p2].children[n2] = fs[tf];
+      return "";
+
+    default:
+      return "bash: command not found\n";
+  }
+}
+
+// -------------------------
+// TERMINAL UI
+// -------------------------
+const term = document.getElementById("terminal");
+const input = document.getElementById("cmd");
+
+function print(text) {
+  term.textContent += text;
+  term.scrollTop = term.scrollHeight;
+}
+
+print("Fake Linux Terminal\nType ls, cd, cat, mkdir, touch\n\n");
+
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    let command = input.value;
+    print(`yona@fake:${cwd}$ ${command}\n`);
+    let output = runCommand(command);
+    print(output + "\n");
+    input.value = "";
+  }
+});
+</script>
+
 </body>
 </html>
