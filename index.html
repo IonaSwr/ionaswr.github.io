@@ -1,149 +1,168 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8" />
-<title>Fake Linux Terminal</title>
-<style>
-body {
-  background: #000;
-  color: #0f0;
-  font-family: monospace;
-  padding: 20px;
-}
-#terminal {
-  white-space: pre-wrap;
-  height: 80vh;
-  overflow-y: auto;
-}
-input {
-  width: 100%;
-  background: #000;
-  border: none;
-  color: #0f0;
-  font-family: monospace;
-  font-size: 16px;
-  outline: none;
-}
-</style>
+<html lang="en"><head>
+  <meta charset="UTF-8">
+  <title>Codless App Editor</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <style>
+    :root{
+      --bg:#0f172a; --card:#0b1220; --text:#e5e7eb; --muted:#94a3b8; --b:#1f2937; --brand:#38bdf8;
+    }
+    *{box-sizing:border-box}
+    body{
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      margin:0; background:linear-gradient(180deg,#0b1220,#0f172a 60%); color:var(--text);
+    }
+    .wrap{max-width:900px;margin:0 auto;padding:16px}
+    h1{margin:12px 16px 0; font-size:1.25rem}
+    header{
+      position:sticky; top:0; z-index:10;
+      background:rgba(11,18,32,.85); backdrop-filter: blur(8px);
+      border-bottom:1px solid var(--b); padding:10px 12px;
+      display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+    }
+    .btn{
+      appearance:none; border:1px solid var(--b); background:#0b1220; color:var(--text);
+      padding:.7rem 1rem; border-radius:.8rem; font-weight:600; cursor:pointer; touch-action:manipulation
+    }
+    .btn.primary{background:linear-gradient(180deg,#22d3ee,#38bdf8); color:#0b1220; border:none}
+    .file-list{ margin-top:1em; display:grid; gap:.5rem }
+    .file-item{
+      cursor:pointer; padding:.8rem; border:1px solid var(--b); border-radius:.8rem;
+      background:#0e1629; display:flex; align-items:center; justify-content:space-between; gap:.6rem
+    }
+    .file-item b{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+    .muted{color:var(--muted); font-size:.9rem}
+    #editor{ display:none; flex-direction:column; gap: .8rem; }
+    .card{
+      background:#0b1220; border:1px solid var(--b); border-radius:.9rem; padding:.8rem
+    }
+    textarea{
+      width:100%; height:60vh; font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      background:#0b1220; color:#e7eaf0; border:1px solid var(--b); border-radius:.8rem; padding:.7rem; resize:vertical
+    }
+    .row{display:flex; align-items:center; gap:.6rem; flex-wrap:wrap}
+    .grow{flex:1}
+    a.link{color:#a5f3fc; text-decoration:none}
+    /* מצב ריק */
+    .empty{color:var(--muted); text-align:center; padding:32px 8px}
+  </style>
 </head>
 <body>
+  <header>
+    <strong>Codless Editor</strong>
+    <button onclick="navigator.clipboard.writeText('<!DOCTYPE html>\n' + document.documentElement.outerHTML)">copy</button> 
+    <button class="btn primary" onclick="createNewFile()">➕ Create New</button>
+  </header>
 
-<div id="terminal"></div>
-<input id="cmd" autofocus />
+  <div class="wrap">
+    <div id="main">
+      <div class="row card" style="justify-content:space-between">
+        <span class="muted">Files</span>
+        <button class="btn" onclick="loadFileList()">Refresh</button>
+      </div>
+      <div class="file-list" id="fileList">
+        <div class="file-item" onclick="openFile('fd48d851.html')">
+          <b>fd48d851.html</b>
+          <span class="muted">tap to edit</span>
+        </div></div>
+      <div id="empty" class="empty" style="display: none;">No files yet. Create a new one ↑</div>
+    </div>
 
-<script>
-// -------------------------
-// VIRTUAL FILESYSTEM
-// -------------------------
-let cwd = "/";
-let fs = {
-  "/": {
-    type: "dir",
-    children: {
-      "home": { type: "dir", children: {} },
-      "readme.txt": { type: "file", content: "Welcome to Fake Linux!" }
+    <div id="editor">
+      <div class="card">
+        <div class="row" style="align-items:baseline">
+          <h2 id="fileTitle" style="margin:.2rem 0; font-size:1.05rem"></h2>
+          <div class="grow"></div>
+          <!-- קישור לטאב חדש לצפייה בקובץ -->
+          <a id="openLink" class="link" target="_blank" rel="noopener">🔗 Open in new tab</a>
+        </div>
+        <textarea id="textArea" spellcheck="false"></textarea>
+        <div class="row">
+          <button class="btn" onclick="saveFile()">💾 Save</button>
+          <button class="btn" onclick="exitEditor()">⬅️ Exit</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = '/save';
+    const fileListEl = document.getElementById('fileList');
+    const editorEl = document.getElementById('editor');
+    const mainEl = document.getElementById('main');
+    const fileTitleEl = document.getElementById('fileTitle');
+    const textAreaEl = document.getElementById('textArea');
+    const openLinkEl = document.getElementById('openLink');
+    const emptyEl = document.getElementById('empty');
+
+    let currentFile = null;
+
+    function loadFileList() {
+      const files = JSON.parse(localStorage.getItem('codless_files') || '[]');
+      fileListEl.innerHTML = files.map(name => `
+        <div class="file-item" onclick="openFile('${name}')">
+          <b>${name}</b>
+          <span class="muted">tap to edit</span>
+        </div>`).join('');
+      emptyEl.style.display = files.length ? 'none':'block';
     }
-  }
-};
 
-// -------------------------
-// HELPERS
-// -------------------------
-function resolvePath(path) {
-  if (!path || path === "/") return "/";
-  if (!path.startsWith("/")) path = cwd + (cwd.endsWith("/") ? "" : "/") + path;
+    function saveFileList(files) {
+      localStorage.setItem('codless_files', JSON.stringify(files));
+    }
 
-  // Normalize
-  let parts = path.split("/").filter(p => p.length > 0);
-  let current = "/";
-  
-  for (let p of parts) {
-    if (!fs[current].children[p]) return null;
-    current += (current.endsWith("/") ? "" : "/") + p;
-  }
-  return current;
-}
+    function createNewFile() {
+      fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/html' },
+        body: '<!-- new file -->'
+      })
+      .then(res => res.json())
+      .then(data => {
+        const filename = data.filename;
+        const files = JSON.parse(localStorage.getItem('codless_files') || '[]');
+        files.push(filename);
+        saveFileList(files);
+        openFile(filename);
+      })
+      .catch(err => alert('Failed to create file: ' + err));
+    }
 
-function listDir(path) {
-  let obj = fs[path];
-  if (!obj || obj.type !== "dir") return "Not a directory\n";
-  return Object.keys(obj.children).join("\n") + "\n";
-}
+    function openFile(filename) {
+      fetch(`/${filename}`)
+      .then(res => res.text())
+      .then(content => {
+        currentFile = filename;
+        fileTitleEl.textContent = filename;
+        textAreaEl.value = content;
+        openLinkEl.href = `/${encodeURIComponent(filename)}`; // קישור לטאב חדש
+        mainEl.style.display = 'none';
+        editorEl.style.display = 'flex';
+      })
+      .catch(err => alert('Failed to load file: ' + err));
+    }
 
-// -------------------------
-// COMMAND IMPLEMENTATIONS
-// -------------------------
-function runCommand(input) {
-  let parts = input.trim().split(" ");
-  let cmd = parts[0];
-  let arg = parts[1];
+    function saveFile() {
+      if (!currentFile) return;
+      fetch(`${API_URL}/${currentFile}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/html' },
+        body: textAreaEl.value
+      })
+      .then(() => alert('Saved!'))
+      .catch(err => alert('Failed to save: ' + err));
+    }
 
-  switch (cmd) {
-    case "ls":
-      return listDir(cwd);
+    function exitEditor() {
+      currentFile = null;
+      textAreaEl.value = '';
+      editorEl.style.display = 'none';
+      mainEl.style.display = 'block';
+      loadFileList();
+    }
 
-    case "cd":
-      let target = resolvePath(arg);
-      if (!target || fs[target].type !== "dir")
-        return "cd: no such directory\n";
-      cwd = target;
-      return "";
+    loadFileList();
+  </script>
 
-    case "cat":
-      let filePath = resolvePath(arg);
-      if (!filePath || !fs[filePath] || fs[filePath].type !== "file")
-        return "cat: no such file\n";
-      return fs[filePath].content + "\n";
 
-    case "mkdir":
-      let mk = resolvePath(arg);
-      if (!mk) {
-        // create folder
-        mk = cwd + (cwd.endsWith("/") ? "" : "/") + arg;
-      }
-      fs[mk] = { type: "dir", children: {} };
-      let parent = mk.substring(0, mk.lastIndexOf("/")) || "/";
-      let name = mk.split("/").pop();
-      fs[parent].children[name] = fs[mk];
-      return "";
-
-    case "touch":
-      let tf = resolvePath(arg);
-      if (!tf) tf = cwd + (cwd.endsWith("/") ? "" : "/") + arg;
-      fs[tf] = { type: "file", content: "" };
-      let p2 = tf.substring(0, tf.lastIndexOf("/")) || "/";
-      let n2 = tf.split("/").pop();
-      fs[p2].children[n2] = fs[tf];
-      return "";
-
-    default:
-      return "bash: command not found\n";
-  }
-}
-
-// -------------------------
-// TERMINAL UI
-// -------------------------
-const term = document.getElementById("terminal");
-const input = document.getElementById("cmd");
-
-function print(text) {
-  term.textContent += text;
-  term.scrollTop = term.scrollHeight;
-}
-
-print("Fake Linux Terminal\nType ls, cd, cat, mkdir, touch\n\n");
-
-input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    let command = input.value;
-    print(`yona@fake:${cwd}$ ${command}\n`);
-    let output = runCommand(command);
-    print(output + "\n");
-    input.value = "";
-  }
-});
-</script>
-
-</body>
-</html>
+</body></html>
